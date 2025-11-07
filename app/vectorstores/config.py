@@ -22,7 +22,7 @@ class VectorStoreBase(ABC):
         """
         创建向量存储实例
         """
-        pass
+        raise NotImplementedError("子类必须实现 create_vector_store 方法")
 
     def add_documents(self, documents: List[Document]) -> None:
         """
