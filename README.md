@@ -46,17 +46,15 @@ It is recommended to use [uv](https://github.com/astral-sh/uv) manage and instal
    ```bash
    git clone <your-repo-url>
    cd tcm
-   uv pip install -r pyproject.toml
+   uv sync
    ```
 
 2. **Run the main program**
 
    ```bash
-   python main.py
+   uv run main.py
    ```
 
-
-3. **Modify configuration**
 
    - The user-selected text vector storage configuration is located in `app/vectorstores/config.py`, where the database path, collection name, index type, and more can be modified as needed.
    - The LLM configuration for the selected text can be modified in `app/core/llm.py` and other locations.
