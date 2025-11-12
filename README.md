@@ -38,20 +38,15 @@
    ```bash
    git clone <your-repo-url>
    cd tcm
-   uv pip install -r pyproject.toml
+   uv sync
    ```
 
 2. **运行主程序**
 
    ```bash
-   python main.py
+   uv run main.py
    ```
 
-   示例输出：
-
-   ```
-   你好！（来自大语言模型的回复）
-   ```
 
 3. **修改配置**
 
