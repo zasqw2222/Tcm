@@ -11,12 +11,7 @@ load_dotenv(find_dotenv(), override=True)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-TTS_MODEL_PATH = os.getenv("ASR_MODEL")
-# 流式识别配置（参考 app_steam.py 示例）
-CHUNK_SIZE = [0, 10, 5]  # [0, 10, 5] 600ms, [0, 8, 4] 480ms
-ENCODER_CHUNK_LOOK_BACK = 4  # number of chunks to lookback for encoder self-attention
-DECODER_CHUNK_LOOK_BACK = 1  # number of encoder chunks to lookback for decoder cross-attention
-CHUNK_STRIDE = CHUNK_SIZE[1] * 960  # 600ms，每个chunk的采样点数
+TTS_MODEL_PATH = os.getenv("TTS_MODEL_PATH")
 SAMPLE_RATE = 16000
 
 tts_router = APIRouter(tags=["TTS路由"])
@@ -43,8 +38,8 @@ async def lifespan(app: tts_router):
     yield  # 应用运行期间
 
 
-@tts_router.post("/api/recognize_audio_data")
-async def recognize_audio_data(audio_data: bytes = Body(...)):
+@tts_router.post("/api/translate_audio")
+async def translate_audio(audio_data: bytes = Body(...)):
     """
     接收完整的音频二进制数据并识别
 

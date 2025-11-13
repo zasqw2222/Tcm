@@ -3,6 +3,9 @@ from dotenv import load_dotenv, find_dotenv
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 from typing import Iterator, Any, Callable, Optional
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from typing import List, Dict, Optional
 load_dotenv(find_dotenv(), override=True)
 
 
@@ -27,37 +30,169 @@ class LLMConfig(BaseModel):
     }, description="额外请求体")
 
 
-class LLM:
-    def __init__(self, config: LLMConfig):
-        """
-        初始化LLM类，加载配置，并实例化底层的ChatOpenAI模型。
-        :param config: LLMConfig，语言模型的相关配置
-        """
-        self.config = config  # 保存传入的配置对象
-        # 创建一个ChatOpenAI实例，设置相关参数
-        self.model = ChatOpenAI(
-            model=self.config.model_name,  # 模型名称
-            temperature=self.config.temperature,  # 生成文本的随机性
-            max_tokens=self.config.max_tokens,  # 响应最大 token 数
-            openai_api_base=self.config.base_url,  # API基础URL
-            openai_api_key=self.config.api_key,  # API密钥
-            extra_body=self.config.extra_body,  # 其他body参数如模板参数
-            top_p=self.config.top_p,  # nucleus采样参数
-            presence_penalty=self.config.presence_penalty,  # 存在惩罚参数
-        )
+llm = ChatOpenAI(
+    model=os.getenv('MODEL_NAME'),
+    openai_api_base=os.getenv('MODEL_BASE_URL'),
+    openai_api_key=os.getenv('MODEL_KEY'),
+    temperature=os.getenv('MODEL_TEMPERATURE'),
+    max_tokens=os.getenv('MODEL_MAX_TOKEN'),
+    presence_penalty=os.getenv('MODEL_PRESENCE_PENALTY'),
+    top_p=os.getenv('MODEL_TOP_P'),
+    extra_body={
+        "top_k": os.getenv('MODEL_TOP_K'),
+        "chat_template_kwargs": {"enable_thinking": os.getenv('MODEL_IS_THINK')},
+    },
 
-    def generate(self, prompt: str) -> str:
-        """
-        以同步方式返回模型生成的结果。
-        :param prompt: 输入的文本提示
-        :return: 生成的文本字符串
-        """
-        return self.model.invoke(prompt)
+)
 
-    def stream(self, prompt: str) -> Iterator[str]:
+
+class MedicalConsultation:
+    def __init__(self, llm, system_prompt):
+        """"""
+        self.llm = llm
+        self.prompt_template = PromptTemplate.from_template(system_prompt)
+        self.messages = []
+        self.patient_info = None
+        self.round_count = 0
+
+    def set_patient_info(self, disease: str, name: str, age: str, sex: str,
+                         tongue: str = "未查", face: str = "未查",
+                         left_pulse: str = "未查", right_pulse: str = "未查"):
         """
-        以流式（增量）方式返回模型生成的内容迭代器。
-        :param prompt: 输入的文本提示
-        :return: 生成文本的迭代器，每次迭代返回部分字符串
+        设置患者基本信息
+
+        Args:
+            disease: 主诉疾病（如"头痛"、"胃痛"）
+            name: 患者姓名
+            age: 年龄
+            sex: 性别（男/女）
+            tongue: 舌象（可选）
+            face: 面象（可选）
+            left_pulse: 左手脉象（可选）
+            right_pulse: 右手脉象（可选）
         """
-        return self.model.stream(prompt)
+        self.patient_info = {
+            "disease": disease,
+            "name": name,
+            "age": age,
+            "sex": sex,
+            "tongueFront": tongue,
+            "face": face,
+            "leftPulse": left_pulse,
+            "rightPulse": right_pulse
+        }
+        return self
+
+    def _format_system_prompt(self) -> str:
+        """格式化系统提示词"""
+        if not self.patient_info:
+            raise ValueError("请先使用 set_patient_info() 设置患者信息")
+
+        return self.prompt_template.format(**self.patient_info)
+
+    def reset(self):
+        """重置对话（开始新的问诊）"""
+        self.messages = []
+        self.round_count = 0
+        return self
+
+    def get_status(self) -> Dict:
+        """获取当前状态"""
+        return {
+            "patient": self.patient_info.get("name") if self.patient_info else None,
+            "round": self.round_count,
+            "message_count": len(self.messages)
+        }
+
+    def get_conversation_history(self) -> List[Dict[str, str]]:
+        """
+        获取格式化的对话历史
+
+        Returns:
+            [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}, ...]
+        """
+        history = []
+        for msg in self.messages:
+            if isinstance(msg, HumanMessage):
+                history.append({"role": "user", "content": msg.content})
+            elif isinstance(msg, AIMessage):
+                history.append({"role": "assistant", "content": msg.content})
+        return history
+
+    def invoke(self, user_message: str) -> str:
+        """
+        发送用户消息并获取AI回复
+
+        Args:
+            user_message: 患者的回答或提问
+
+        Returns:
+            医生的回复
+        """
+
+        # 添加用户消息到历史
+        self.messages.append(HumanMessage(content=f'{user_message}'))
+        self.round_count += 1
+
+        chat_template = ChatPromptTemplate.from_messages([
+            SystemMessage(content=self._format_system_prompt()),
+            MessagesPlaceholder(variable_name="history")
+        ])
+
+        # 调用模型
+        try:
+            chain = chat_template | self.llm
+            response = chain.invoke({"history": self.messages})
+
+        except Exception as e:
+            print(f"模型调用失败: {e}")
+            return "抱歉，模型暂时无法响应。"
+
+        content = response.content if hasattr(response, 'content') else ""
+        response = AIMessage(content)
+
+        self.messages.append(response)
+
+        # 返回字符串内容
+        return response.content
+
+    async def stream(self, user_message: str):
+        """
+        发送用户消息并流式获取AI回复（异步生成器）
+
+        Args:
+            user_message: 患者的回答或提问
+
+        Yields:
+            AI回复的文本片段
+        """
+        # 添加用户消息到历史
+        self.messages.append(HumanMessage(content=f'{user_message}'))
+        self.round_count += 1
+
+        # 创建聊天模板
+        chat_template = ChatPromptTemplate.from_messages([
+            SystemMessage(content=self._format_system_prompt()),
+            MessagesPlaceholder(variable_name="history")
+        ])
+
+        # 调用模型（流式）
+        try:
+            chain = chat_template | self.llm
+            full_response = ""
+
+            # 流式输出
+            async for chunk in chain.astream({"history": self.messages}):
+                if hasattr(chunk, 'content'):
+                    content = chunk.content
+                    if content:
+                        full_response += content
+                        yield content
+
+            # 添加完整回复到历史
+            self.messages.append(AIMessage(content=full_response))
+
+        except Exception as e:
+            error_msg = "抱歉，模型暂时无法响应。"
+            self.messages.append(AIMessage(content=error_msg))
+            yield error_msg
