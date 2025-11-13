@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv, find_dotenv
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
-from typing import Iterator, Any, Callable, Optional
+from typing import Optional
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from typing import List, Dict, Optional
@@ -48,7 +48,7 @@ llm = ChatOpenAI(
 
 class MedicalConsultation:
     def __init__(self, llm, system_prompt):
-        """"""
+        # 初始化MedicalConsultation类，包括llm实例、系统提示词、消息历史和患者信息等属性
         self.llm = llm
         self.prompt_template = PromptTemplate.from_template(system_prompt)
         self.messages = []

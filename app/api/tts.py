@@ -25,10 +25,10 @@ async def lifespan(app: tts_router):
     try:
         logger.info("正在加载流式语音识别模型...")
         logger.info("模型: paraformer-zh-streaming")
-
+        print('加载模型')
         # model = AutoModel(model="paraformer-zh-streaming")
         model = AutoModel(model=TTS_MODEL_PATH)
-
+        print('加载模型成功')
         logger.info("流式模型加载成功！")
 
     except Exception as e:
@@ -38,7 +38,7 @@ async def lifespan(app: tts_router):
     yield  # 应用运行期间
 
 
-@tts_router.post("/api/translate_audio")
+@tts_router.post("/translate_audio")
 async def translate_audio(audio_data: bytes = Body(...)):
     """
     接收完整的音频二进制数据并识别

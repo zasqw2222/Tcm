@@ -2,12 +2,6 @@
 import sys
 from pathlib import Path
 
-# 将项目根目录添加到 Python 路径中，确保可以导入 app 模块
-# 这样无论文件是作为模块导入还是直接运行都能正常工作
-project_root = Path(__file__).parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
 from app.vectorstores.config import VectorStoreConfig, VectorStoreBase
 from langchain_milvus import Milvus
 from app.core.embedding import Embedding

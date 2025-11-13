@@ -1,14 +1,18 @@
 
 import uvicorn
+import os
+from dotenv import load_dotenv, find_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.main import router
 
+load_dotenv(find_dotenv(), override=True)
+
 app = FastAPI(
-    debug='',
-    title='',
-    description='',
-    version='',
+    debug=os.getenv('PROJECT_DEBUG'),
+    title=os.getenv('PROJECT_NAME'),
+    description=os.getenv('PROJECT_DESCRIPTION'),
+    version=os.getenv('PROJECT_VERSION'),
 )
 
 app.add_middleware(
@@ -27,4 +31,4 @@ def main():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run('main:app', host="0.0.0.0", port=8000, reload=True)
