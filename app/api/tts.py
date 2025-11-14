@@ -4,7 +4,7 @@ import numpy as np
 from dotenv import load_dotenv, find_dotenv
 from funasr import AutoModel
 
-from fastapi import HTTPException, APIRouter, Body
+from fastapi import APIRouter, Body
 from contextlib import asynccontextmanager
 
 load_dotenv(find_dotenv(), override=True)
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 TTS_MODEL_PATH = os.getenv("TTS_MODEL_PATH")
 SAMPLE_RATE = 16000
 
-tts_router = APIRouter(tags=["TTS路由"])
+tts_router = APIRouter()
 
 
 @asynccontextmanager

@@ -29,7 +29,6 @@ class LLMConfig(BaseModel):
         "chat_template_kwargs": {"enable_thinking": False}
     }, description="额外请求体")
 
-
 llm = ChatOpenAI(
     model=os.getenv('MODEL_NAME'),
     openai_api_base=os.getenv('MODEL_BASE_URL'),
@@ -44,7 +43,20 @@ llm = ChatOpenAI(
     },
 
 )
+# llm = ChatOpenAI(
+#     model="qwen3-32B-fp8",
+#     openai_api_base="http://127.0.0.1:8888/v1",
+#     openai_api_key="llm",
+#     temperature=0.2,
+#     max_tokens=8192,
+#     presence_penalty=0.5,
+#     top_p=0.9,
+#     extra_body={
+#         "top_k": 20,
+#         "chat_template_kwargs": {"enable_thinking": False},
+#     },
 
+# )
 
 class MedicalConsultation:
     def __init__(self, llm, system_prompt):

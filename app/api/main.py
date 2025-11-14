@@ -3,7 +3,6 @@ from dotenv import load_dotenv, find_dotenv
 from fastapi import APIRouter
 from app.api.embedding import embedding_router
 from app.api.tts import tts_router
-from app.api.session import session_router
 from app.api.chat import chat_router
 
 load_dotenv(find_dotenv(), override=True)
@@ -16,8 +15,6 @@ router.include_router(
 router.include_router(
     tts_router, prefix=prefix, tags=['TTS路由'])
 
-router.include_router(
-    session_router, prefix=prefix, tags=['Session路由'])
 
 router.include_router(
     chat_router, prefix=prefix, tags=['Chat路由'])

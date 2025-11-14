@@ -5,6 +5,7 @@ from dotenv import load_dotenv, find_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.main import router
+from app.api.chat import lifespan
 
 load_dotenv(find_dotenv(), override=True)
 
@@ -13,6 +14,7 @@ app = FastAPI(
     title=os.getenv('PROJECT_NAME'),
     description=os.getenv('PROJECT_DESCRIPTION'),
     version=os.getenv('PROJECT_VERSION'),
+    lifespan=lifespan,
 )
 
 app.add_middleware(
