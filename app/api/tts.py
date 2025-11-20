@@ -14,12 +14,15 @@ logger = logging.getLogger(__name__)
 TTS_MODEL_PATH = os.getenv("TTS_MODEL_PATH")
 SAMPLE_RATE = 16000
 
+# 全局模型变量
+model = None
+
 tts_router = APIRouter()
 
 
 @asynccontextmanager
-async def lifespan(app: tts_router):
-    """应用生命周期管理：启动时加载模型，关闭时清理资源"""
+async def lifespan(app):
+    """应用生命周期管理:启动时加载模型,关闭时清理资源"""
     global model
     # 启动时执行
     try:
@@ -43,7 +46,7 @@ async def translate_audio(audio_data: bytes = Body(...)):
     """
     接收完整的音频二进制数据并识别
 
-    使用场景：浏览器端录音时，点击录音后不发送任何数据，点击结束录音时一次性将所有录音数据发送给此接口
+    使用场景:浏览器端录音时,点击录音后不发送任何数据,点击结束录音时一次性将所有录音数据发送给此接口
 
     请求格式:
     - Content-Type: application/octet-stream 或 audio/pcm
@@ -53,7 +56,7 @@ async def translate_audio(audio_data: bytes = Body(...)):
     - success: 是否成功
     - text: 识别结果文本
     - details: 详细识别信息
-    - audio_length_seconds: 音频长度（秒）
+    - audio_length_seconds: 音频长度(秒)
     """
     if model is None:
         return {"success": False, "error": "模型未加载", "code": 500}
@@ -69,25 +72,25 @@ async def translate_audio(audio_data: bytes = Body(...)):
                 "code": 400
             }
 
-        logger.info(f"接收到音频数据，大小: {len(raw_bytes)} bytes")
+        logger.info(f"接收到音频数据,大小: {len(raw_bytes)} bytes")
 
-        audio_data = np.frombuffer(raw_bytes, dtype=np.int16)
+        # 将二进制数据转换为 numpy 数组
+        audio_array = np.frombuffer(raw_bytes, dtype=np.int16)
         
- 
-        audio_data = audio_data.astype(np.float32) / 32768.0
+        # 归一化到 [-1.0, 1.0]
+        audio_array = audio_array.astype(np.float32) / 32768.0
 
-
-        if len(audio_data) < SAMPLE_RATE * 0.1:  # 小于0.1秒
+        if len(audio_array) < SAMPLE_RATE * 0.1:  # 小于0.1秒
             return {
                 "success": False,
-                "error": "音频数据太短（至少需要0.1秒）",
+                "error": "音频数据太短(至少需要0.1秒)",
                 "code": 400
             }
 
         logger.info(
-            f"开始识别完整音频，长度: {len(audio_data)} samples ({len(audio_data)/SAMPLE_RATE:.2f}秒)")
+            f"开始识别完整音频,长度: {len(audio_array)} samples ({len(audio_array)/SAMPLE_RATE:.2f}秒)")
 
-        result = model.generate(input=audio_data)
+        result = model.generate(input=audio_array)
 
         if result and isinstance(result, list) and len(result) > 0:
             text = result[0].get("text", "") if isinstance(
@@ -97,16 +100,16 @@ async def translate_audio(audio_data: bytes = Body(...)):
         else:
             text = ""
 
-        audio_length = len(audio_data) / SAMPLE_RATE
+        audio_length = len(audio_array) / SAMPLE_RATE
 
-        logger.info(f"识别完成，结果: {text[:100]}...，音频长度: {audio_length:.2f}秒")
+        logger.info(f"识别完成,结果: {text[:100]}...,音频长度: {audio_length:.2f}秒")
 
         return {
             "success": True,
             "text": text,
             "details": result,
             "audio_length_seconds": round(audio_length, 2),
-            "audio_samples": len(audio_data)
+            "audio_samples": len(audio_array)
         }
 
     except Exception as e:

@@ -1,4 +1,5 @@
 import os
+import json
 from dotenv import load_dotenv, find_dotenv
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
@@ -6,6 +7,8 @@ from typing import Optional
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from typing import List, Dict, Optional
+from app.prompt.v_prompt import prompt
+import re
 load_dotenv(find_dotenv(), override=True)
 
 
@@ -14,34 +17,34 @@ class LLMConfig(BaseModel):
     model_name: str = Field(default=os.getenv(
         "MODEL_NAME"), description="模型名称，指定要使用的语言模型")
     temperature: float = Field(
-        default=0.7, ge=0.0, le=2.0, description="温度参数，控制生成文本的随机性，0表示完全确定性")
-    max_tokens: int = Field(default=4096, ge=1, le=32768,
+        default=float(os.getenv("MODEL_TEMPERATURE", 0.7)), ge=0.0, le=2.0, description="温度参数，控制生成文本的随机性，0表示完全确定性")
+    max_tokens: int = Field(default=int(os.getenv("MODEL_MAX_TOKEN", 4096)), ge=1, le=32768,
                             description="最大token长度，控制生成文本的最大长度")
     base_url: Optional[str] = Field(default=os.getenv(
         "MODEL_BASE_URL"), description="基础URL")
     api_key: Optional[str] = Field(default=os.getenv(
         "MODEL_KEY"), description="API密钥")
     top_p: Optional[float] = Field(
-        default=0.8, ge=0.0, le=1.0, description="核采样参数，控制生成文本的多样性")
+        default=float(os.getenv("MODEL_TOP_P", 0.8)), ge=0.0, le=1.0, description="核采样参数，控制生成文本的多样性")
     presence_penalty: Optional[float] = Field(
-        default=0.0, ge=0.0, le=2.0, description="存在惩罚参数，控制生成文本的新颖性")
-    extra_body: Optional[dict] = Field(default={
-        "chat_template_kwargs": {"enable_thinking": False}
+        default=float(os.getenv("MODEL_PRESENCE_PENALTY", 0.0)), ge=0.0, le=2.0, description="存在惩罚参数，控制生成文本的新颖性")
+    extra_body: Optional[dict] = Field(default_factory=lambda: {
+        "top_k": int(os.getenv('MODEL_TOP_K', 20)),
+        "chat_template_kwargs": {"enable_thinking": os.getenv('MODEL_IS_THINK', 'false').lower() == 'true'}
     }, description="额外请求体")
 
-llm = ChatOpenAI(
-    model=os.getenv('MODEL_NAME'),
-    openai_api_base=os.getenv('MODEL_BASE_URL'),
-    openai_api_key=os.getenv('MODEL_KEY'),
-    temperature=os.getenv('MODEL_TEMPERATURE'),
-    max_tokens=os.getenv('MODEL_MAX_TOKEN'),
-    presence_penalty=os.getenv('MODEL_PRESENCE_PENALTY'),
-    top_p=os.getenv('MODEL_TOP_P'),
-    extra_body={
-        "top_k": os.getenv('MODEL_TOP_K'),
-        "chat_template_kwargs": {"enable_thinking": os.getenv('MODEL_IS_THINK')},
-    },
 
+llm_config = LLMConfig()
+
+llm = ChatOpenAI(
+    model=llm_config.model_name,
+    openai_api_base=llm_config.base_url,
+    openai_api_key=llm_config.api_key,
+    temperature=llm_config.temperature,
+    max_tokens=llm_config.max_tokens,
+    presence_penalty=llm_config.presence_penalty,
+    top_p=llm_config.top_p,
+    extra_body=llm_config.extra_body,
 )
 # llm = ChatOpenAI(
 #     model="qwen3-32B-fp8",
@@ -57,6 +60,7 @@ llm = ChatOpenAI(
 #     },
 
 # )
+
 
 class MedicalConsultation:
     def __init__(self, llm, system_prompt):
@@ -208,3 +212,48 @@ class MedicalConsultation:
             error_msg = "抱歉，模型暂时无法响应。"
             self.messages.append(AIMessage(content=error_msg))
             yield error_msg
+
+    def validate(self, user_message: str) -> bool:
+        """
+        验证患者回答是否与医生问题相关
+
+        本方法会根据患者主诉疾病（patient_disease）及最近一轮医生提出的问题（doctor_question），
+        利用大模型来判断 user_message 是否与当前问诊内容紧密相关。
+
+        参数:
+            user_message (str): 患者本轮作答或者回复的内容（通常为语音转写文本）
+
+        返回:
+            bool: True 表示相关，False 表示不相关
+        """
+        patient_disease = self.patient_info.get(
+            'disease', '未知') if self.patient_info else '未知'
+
+        # 获取医生的最后一个问题
+        doctor_question = None
+        for msg in reversed(self.messages):
+            if isinstance(msg, AIMessage):
+                doctor_question = msg.content
+                break
+
+        # 如果是第一轮对话，没有历史问题
+        if not doctor_question or self.round_count == 0:
+            return True
+
+        validation_prompt = prompt.format(
+            patient_disease=patient_disease, doctor_question=doctor_question, user_answer=user_message)
+
+        response = self.llm.invoke(validation_prompt)
+        result_text = response.content if hasattr(
+            response, 'content') else str(response)
+        json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
+
+        if json_match:
+            try:
+                result = json.loads(json_match.group())
+                is_relevant = result.get('is_relevant', True)
+                return is_relevant
+            except Exception:
+                return True
+        else:
+            return True

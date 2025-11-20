@@ -3,22 +3,23 @@ name = "tcm"
 version = "0.1.0"
 description = "https://github.com/zasqw2222/Tcm.git"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10,<3.13"
 dependencies = [
     "fastapi>=0.121.1",
     "langchain-chroma>=1.0.0",
-    "langchain-community>=0.4.1",
-    "langchain-huggingface>=1.0.1",
-    "langchain-milvus>=0.2.2",
-    "langchain-openai>=1.0.2",
-    "pydantic>=2.12.4",
-    "python-dotenv>=1.2.1",
+    "langchain-community>=0.3.17",
+    "langchain-openai>=0.3.4",
+    "numpy<2.0.0",
+    "pydantic>=2.10.6",
+    "python-dotenv>=1.0.1",
+    "uvicorn[standard]>=0.34.0",
+    "funasr>=1.2.4",
+    "torch>=2.6.0",
+    "torchaudio>=2.6.0",
+    "transformers>=4.49.0",
+    "graphrag>=2.7.0",
     "sentence-transformers>=5.1.2",
-    "torch",
-    "funasr",
-    "uvicorn[standard]>=0.32.1",
-    "numpy>=2.3.4",
-    "torchaudio>=2.9.0",
+    "langchain-huggingface>=1.0.1",
 ]
 
 

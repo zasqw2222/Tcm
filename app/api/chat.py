@@ -45,6 +45,20 @@ class InvokeResponse(BaseModel):
     round: int = Field(..., description="对话轮次")
 
 
+class ValidateRequest(BaseModel):
+    """验证请求"""
+    session_id: str = Field(..., description="会话ID")
+    user_answer: str = Field(..., description="患者的回答（语音转文字）")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "session_id": "uuid-string",
+                "user_answer": "太阳穴那里痛"
+            }
+        }
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -233,4 +247,42 @@ async def invoke(request: InvokeRequest) -> UnifiedResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"处理消息失败: {str(e)}"
+        )
+
+
+@chat_router.post("/validate", response_model=UnifiedResponse)
+async def validate(request: ValidateRequest) -> UnifiedResponse:
+    """
+    验证患者回答是否符合医生问题的语境（语音转文字后调用此接口）
+
+    - **session_id**: 会话ID
+    - **user_answer**: 患者的回答（语音转文字后的内容）
+    - 返回验证结果，前端根据结果决定是否继续调用 对话 接口
+
+    使用流程：
+    1. 前端语音转文字
+    2. 调用此接口验证
+    3. 如果 is_relevant=true 且 confidence 较高，调用 对话 接口
+    4. 如果 is_relevant=false，提示用户重新说话
+    """
+    # 检查会话是否存在
+    if request.session_id not in global_sessions.sessions:
+        return error(
+            code=status.HTTP_404_NOT_FOUND,
+            message=f"会话不存在: {request.session_id}"
+        )
+    try:
+        consultation = global_sessions.get_medicalConsultation(
+            request.session_id)
+
+        validate_result = consultation.validate(request.user_answer)
+        return success({
+            'session_id': request.session_id,
+            'validate_result': validate_result
+        })
+
+    except Exception as e:
+        return error(
+            code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            message=f"验证失败: {str(e)}"
         )

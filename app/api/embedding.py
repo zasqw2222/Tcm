@@ -48,10 +48,21 @@ async def create_embedding(request: EmbeddingRequest):
     inputs = request.input
     if isinstance(inputs, str):  # 转为列表统一处理
         inputs = [inputs]
+
     try:
+        # 确保 inputs 非空
+        if not inputs:
+            return EmbeddingResponse(data=[], model=request.model)
+
         embeddings = embedding_model.encode(inputs, normalize_embeddings=True)
+
+        # 处理 Tensor 转换为 numpy
         if isinstance(embeddings, torch.Tensor):
             embeddings = embeddings.cpu().numpy()
+        elif not hasattr(embeddings, '__iter__') and not isinstance(embeddings, list):
+             # 防御性编程：如果 encode 返回单个非列表对象（不太可能，但以防万一）
+             embeddings = [embeddings]
+
         data = [
             EmbeddingObject(
                 embedding=emb.tolist() if hasattr(emb, 'tolist') else list(emb),
@@ -59,6 +70,15 @@ async def create_embedding(request: EmbeddingRequest):
             )
             for i, emb in enumerate(embeddings)
         ]
-        return EmbeddingResponse(data=data, model=request.model)
+        
+        # 简单估算 usage (字符数作为 token 数的近似，仅供参考)
+        total_tokens = sum(len(s) for s in inputs)
+        
+        return EmbeddingResponse(
+            data=data, 
+            model=request.model,
+            usage={"prompt_tokens": total_tokens, "total_tokens": total_tokens}
+        )
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Embedding failed: {str(e)}")
